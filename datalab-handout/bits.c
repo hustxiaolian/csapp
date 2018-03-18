@@ -211,6 +211,8 @@ int tmin(void) {
  *   Rating: 2
  */
 int fitsBits(int x, int n) {
+  /*
+  这种我错误的理解了题目的意思。它问的是一个数能不能用n位的二进制数来表示
   //get -1
   int nag1 = ~(0x00);
   //get move count
@@ -218,6 +220,14 @@ int fitsBits(int x, int n) {
   int posx = ~(x + nag1);
   int mask = ~(1 << w);
   return !(posx & mask);
+  */
+  int shiftNum = 32 + (~n + 1);
+  //32 - n
+  int temp = (x << shiftNum) >> shiftNum;
+  //这样相当于只保留了x的低n位，高32-位要不全是0，要不全是1，如果x是超过范围的数，那么无论x的正负，它的高32-n不会都是0或者1的情况，因此我可以判断x移位前后来判断x是否能用n为来表示
+  //知识点，可以使用！(x ^ y)这种形式来判断x和y的二进制是否完成相同。相同返回1,否则返回0；
+  return !(temp ^ x);
+  
 }
 /* 
  * divpwr2 - Compute x/(2^n), for 0 <= n <= 30
