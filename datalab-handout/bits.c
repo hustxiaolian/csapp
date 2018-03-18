@@ -1,4 +1,4 @@
-/* 
+/*
  * CS:APP Data Lab 
  * 
  * <Please put your name and userid here> xiaolian
@@ -238,10 +238,14 @@ int fitsBits(int x, int n) {
  *   Rating: 2
  */
 int divpwr2(int x, int n) {
-    //get -1
-    int tmin = ~(0x00);
-    int p2n = (1 << n);
-    return (x + p2n + tmin) >> n;
+  //该题目的思路来自https://www.cnblogs.com/tenlee/p/4951639.html
+  //我当时自己确实没想出来
+  //现在想想确实简单，正数直接移位，即可，负数需要加上2^n-1的偏置之后再移位，使用逻辑运算符结合这两种情况即可。
+  int signx = x >> 31;//x >= 0, signx = 0(全0),x < 0,signx = -1（全1）
+  int offset = (1 << n) + ~(0x0);//得到用于偏置的数
+  int temp = signx & offset;//使用与运算符，负数则有偏置，证书全0
+  return (x + temp) >> n;
+  
 }
 /* 
  * negate - return -x 
