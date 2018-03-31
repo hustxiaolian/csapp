@@ -1,6 +1,8 @@
 #include<stdio.h>
 #include<iostream>
 
+using namespace std;
+
 typedef unsigned char *byte_pointer;
 
 void show_unsigned_int(unsigned ui);
@@ -210,4 +212,124 @@ unsigned rotate_left(unsigned x, int n){
 	int mask = ((miss_bytes >> (31 - n)) >> 1) & (~(ff << n));
 	//
 	return (x << n) | mask;
+}
+
+/*
+书中第2.70，也是dataLab里面的题目
+思路就是，把它左移32 - n，再右移32 - n。看变化前后的低n位是否相等
+
+有点问题，回头再想想，这个只能用来判断无符号int
+*/
+int fits_bits(int x, int n){
+	//先左移，再右移
+	int xx = ( x << (32 - n)) >> (32 - n);
+	//生成[00..011..,]这样的掩码
+	int mask = ~((~(0)) << n );
+	//使用异或来判断两个是否完全相同，两者完全相同异或后为全0
+	return !((xx & mask) ^ (x & mask));
+}
+
+/*
+不得不说，答案的思路真是很妙。"该题的本质就是判断x的高w - n + 1位是否为0或者-1"
+*/
+int fits_bits2(int x, int n){
+	x = x >> (n - 1);
+	return (x == -1) || (x == 0);
+}
+
+/*
+书中第2.71题目
+测试通过
+
+我的机器的右移是逻辑右移。所以vs上有点问题。
+*/
+int xbyte (unsigned word, int bytenum){
+	return (word << ( 24 - (bytenum << 3 ) )) >> 24;
+}
+
+/*
+书中第2.72题
+
+步骤和思路：
+1. 当a b异号时，不会溢出。
+2. a > 0, b > 0, t = a + b < 0时，正溢出
+3. a < 0, b < 0, t = a + b > 0时，负溢出
+
+就是根据这三个条件，生成三个掩码。当符合相应时，对应掩码的所有位全部为1.
+
+*/
+int saturating_add(int x, int y){
+	//w = 32
+	int w = sizeof(int) << 3;
+	//暂存计算结果
+	int t = x + y;
+	int ans = x + y;
+	//将x，y和t三个值都向左移31位。提取符号位。如果符号为0，算术右移后为全0.如果符号为1，算术右移后全1
+	x = x >> (w - 1);
+	y = y >> (w - 1);
+	t = t >> (w - 1);
+	//根据上面步骤设置正溢出标志,负溢出标志和无溢出标志
+	//这样，当无溢出时，pos_ovf所有位全为0，neg_ovf所有位全为0，non_ovf全部为1.其他情况类似。
+	//也就是说，只会有一个全为1
+	int pos_ovf = (~x) & (~y) & (t);
+	int neg_ovf = (x) & (y) & (~t);
+	int non_ovf = ~(~pos_ovf | ~neg_ovf);
+	//设置Tmim和Tmax，注意这里的右移均为算术右移
+	int Tmin = (1 << (w - 1));
+	int Tmax = ~Tmin;
+	return (neg_ovf & Tmin) | (non_ovf & ans) | (pos_ovf & Tmax);
+}
+
+/*
+书中第2.74题
+其实这题和上一题非常类似，感觉算是简单版。
+
+测试通过~
+
+原理：
+1. 如果x > 0, y < 0, 但是结果小于0.则是正溢出了
+2. 反之，如果x < 0, y > 0 ,但是结果大于0，则说明结果负溢出了
+
+*/
+int tsub_ok(int x, int y){
+	//获取当前int的位值
+	int w = sizeof(int) << 3;
+	int t = x + y;
+	//右移31位
+	x >>= (w - 1);
+	y >>= (w - 1);
+	t >>= (w - 1);
+	//如果正溢出，则全1，
+	int pos_ovf = ~x & y & t;
+	int neg_ovf = x & ~y & ~t;
+	//如果既没有正溢出，也没有负溢出，那么ok
+	return !(pos_ovf | neg_ovf);
+}
+/*
+书中第2.78题
+
+直接计算x>>k，当x为正数时，没问题，向下舍入，而当x为负数时，我们可以再进行向下舍入后，判断它下，然后看条件向上+1即可
+
+*/
+
+int divide_power2(int x, int k){
+	int w = sizeof(int) << 3;
+	int ans = x >> k;
+	//负数时，且x的低k位不全为0
+	int is_add_plus_one = x >> (w - 1) && (x << (w - k));
+	return ans + is_add_plus_one;
+}
+
+/*
+书中第2.79题,会溢出
+*/
+int mul3div4(int x){
+	//计算3x
+	int temp = (x << 1) + x;
+	
+	//3x / 4。考虑负数向零舍入，思路同2.78题。判断x<0 && x的低2位是否全为0
+	int w = sizeof(int) << 3;
+	int ans = temp >> 2;
+	int is_need_plus_one = (temp >> (w - 1)) && (temp << (w - 2));
+	return ans + is_need_plus_one;
 }
