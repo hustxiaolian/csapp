@@ -1,5 +1,7 @@
 #include<stdio.h>
 #include<iostream>
+#include<stdlib.h>
+#include<time.h>
 
 using namespace std;
 
@@ -121,6 +123,8 @@ bool int_shifts_are_arithmetic(){
 
 /*
 书中2.62题答案
+
+思路：就是直接把一个int变量置为-1，即该变量得位级表示为全1，然后我们右移下，再判断下是否还是-1.
 */
 bool int_shifts_are_arithmetic_daan(){
 	int i = -1;//位表示：全为1
@@ -332,4 +336,196 @@ int mul3div4(int x){
 	int ans = temp >> 2;
 	int is_need_plus_one = (temp >> (w - 1)) && (temp << (w - 2));
 	return ans + is_need_plus_one;
+}
+
+/****************************浮点数位级编程*********************/
+
+typedef unsigned float_bits;
+
+float u2f(unsigned x){
+	//先取地址，然后更改指针类型，然后*操作符来读取具体数值。
+	return *((float*) &x);
+}
+
+unsigned f2u(float f){
+	return *((unsigned *) &f);
+}
+
+/*直接比较位级是否完全一样*/
+bool is_float_eqaul(float_bits f1, float f2){
+	return f2u(f2) == f1;
+}
+
+
+/*测试函数*/
+
+int testFun(float_bits (*fun1)(float_bits), float (*fun2)(float)){
+	unsigned x = 0;
+	do{
+		float_bits fb = fun1(x);
+		float ff = fun2(u2f(x));
+
+		if(!is_float_eqaul(fb,ff) &&  !_isnan(fb)){
+			//%x 输出给定参数的十六进制
+			printf("%x error\t float_bits:%x\t real_float:%.2f\n", x, fb, ff);
+			x++;
+			continue;
+		}
+		//挨个所有树都检查一遍
+		x++;
+	}while(x != 0);
+
+	printf("Test Ok!\n");
+	return 1;
+}
+
+/*
+书中第2.92题
+compute -f.if f is NaN, then return f
+
+思路：
+无非是就是把符号位取反即可。
+
+*/
+float_bits float_negative(float_bits f){
+	int w = sizeof(int) << 3;
+	int sf = 1 << (w - 1);
+	int mask = ~sf;
+	return (mask & f) | (~f & sf); 
+}
+
+float_bits float_negative_answer(float_bits f){
+	if(_isnan(f)) return f;
+	int w = sizeof(int) << 3;
+	int mask = 1 << (w - 1);
+	return f ^ mask; 
+}
+
+float float_negative(float f){
+	return -f;
+}
+
+/*
+书中第2.93题
+
+思路也是异常简单。直接把最高位的符号位置为0即可。
+在浮点数中，所能表示的正负数是完全对称的。
+
+*/
+float_bits float_absval(float_bits f){
+	if(_isnan(f))
+		return f;
+
+	int w = sizeof(int) << 3;
+	int mask = ~(1 << (w - 1));
+	return mask & f;
+}
+
+float float_absval(float f){
+	if(_isnan(f))
+		return f;
+	return abs(f);
+}
+
+/*
+书中第2.94题
+
+这道题三颗星，有点叼的。主要是考虑非规格-》规格-》非规格的转化。
+
+思路：
+1. 如果是最小的那批非规格化数，阶码全0的那批，直接在尾数中左移即可。
+2. 1中较大的那部分，乘以2.0，就会变成规格化的数。
+
+其实核心就在于，判断尾数向解码进位的问题
+1.直接判断尾数的最高位是否为1。没有，直接移尾数即可。有，移位尾数的基础上，需要在阶码上+1
+2.如果f isNaN,直接返回。
+3.如果f 的阶码全是1，尾数全0，即无穷大的表示，直接返回。
+4.如果f 的阶码全是0，而且尾数全0，即0的表示，直接返回。
+
+*/
+float_bits float_twice(float_bits f){
+	if(_isnan(f))
+		return f;
+	//取出f的阶码8位和尾数23位
+	unsigned mask_e = (((1 << 8) - 1) << 23);
+	unsigned mask_ff = ((1 << 23) - 1);
+	unsigned mask_s = (1 << 31);
+
+	unsigned e = f & mask_e;
+	unsigned ff = f & mask_ff;
+	unsigned s = f & mask_s;
+	
+	//判断f为0和无穷大的情况
+	if(e == mask_e){
+		//无穷大的情况
+		return f;
+	}
+	else{
+		if(e == 0){
+			if(ff == 0)
+				return f;
+			//最小规格化数的乘以2操作。包含0
+			//判断阶码尾数的最高位是否为1
+			//bug 1 这个规则只适合最小的非规格化数*2.0规则
+			unsigned need_plus_one = ((1 << 22) & ff) << 1;
+			return (ff << 1) & mask_ff | (e + need_plus_one) | s;
+		}
+		else{
+			//到这里它已经是正常的规格化数了
+			return (f & ~mask_e) | (e + (1 << 23));
+		}
+	}
+}
+
+float float_twice(float f){
+	if(_isnan(f))
+		return f;
+	return f * 2.0;
+}
+
+/*
+书中第2.95题。
+其实思路和上面一题差不多。
+
+还是分成几种情况。
+1.如果是nan，直接返回。
+2.如果是无穷大，也是直接返回。
+3.如果是0，直接返回
+4.如果是较大的规格化数，直接返回。
+5.如果是较小的规格化数，即阶码只有最低位为1，其他都是0.这时候应该是，阶码置为0后，尾数右移一位。
+
+*/
+float_bits float_half(float_bits f){
+	if(_isnan(f))
+		return f;
+	//取出f的阶码8位和尾数23位
+	unsigned mask_e = (((1 << 8) - 1) << 23);
+	unsigned mask_ff = ((1 << 23) - 1);
+	unsigned mask_s = (1 << 31);
+
+	unsigned e = f & mask_e;
+	unsigned ff = f & mask_ff;
+	unsigned s = f & mask_s;
+
+	//判断f为0和无穷大的情况
+	if(e == mask_e){
+		//无穷大的情况
+		return f;
+	}
+	else{
+		if(e == 0){
+			//阶码全为0，说明它要不是非规格化数，要不是零，直接右移尾数即可
+			return s | e | (ff >> 1);
+		}
+		else{
+			if(e & (1 << 23) == e){
+				//说明是较小的规格化数这种特殊情况
+				return s | (f & (~mask_s) >> 1);
+			}
+			else{
+				//较大的规格化数，阶码-1即可
+				return s | (e - (1 << 23)) | ff; 
+			}
+		}
+	}
 }
